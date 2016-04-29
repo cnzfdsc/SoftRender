@@ -1,0 +1,99 @@
+删除自SoftRenderer.cpp
+装配图元部分, 定点经过矩阵变换的下一句
+mGeo.transVertex[i] = ( mGeo.orgVertex[i] + mGeo.worldPos ) * m;的下一句
+
+//if ( mGeo.transVertex[i].z < 0 || mGeo.transVertex[i].z > mCamera.farz / ( mCamera.farz - mCamera.nearz ) )
+//{
+//	// 投影矩阵是有缺陷的, 这里修复投影区外对Z的错误映射
+//	Matrix4 inverseTrans(m);
+//	inverseTrans.Inverse();
+//	Vector3 org( 0, 0, 0 );
+//	org *= inverseTrans;
+
+//	Vector3 symmetry = org - mGeo.orgVertex[i];
+//	mGeo.transVertex[i] = ( ( mGeo.orgVertex[i] + symmetry * 2 ) * m ) * -1;
+//}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+
+if ( insideCount < 3 )
+{
+	Vector3 interPoints[2];
+	dword in = 0, out = 0;
+	for ( dword i = 0; i < 3; ++ i )
+	{
+		if ( inside[i] == inside[( i + 1 ) % 3] )
+			continue;
+
+		Vector3 inPoint, outPoint;
+		if ( inside[i] )
+		{
+			inPoint = prim.vertList[ prim.vertIndex[i] ];
+			outPoint = prim.vertList[ prim.vertIndex[( i + 1 ) % 3] ];
+			in = i;
+			out = ( i + 1 ) % 3;
+		}
+		else
+		{
+			inPoint = prim.vertList[ prim.vertIndex[( i + 1 ) % 3] ];
+			outPoint = prim.vertList[ prim.vertIndex[i] ];
+			in = ( i + 1 ) % 3;
+			out = i;
+		}
+		Vector3 dir = outPoint - inPoint;
+		
+		// 用参数方程求交点
+		float mint = 1.0f;
+		float t = ( -1.0f - inPoint.x ) / dir.x;
+		if ( t > 0.0f && t < mint )
+			mint = t;
+		t = ( 1.0f - inPoint.x ) / dir.x;
+		if ( t > 0.0f && t < mint )
+			mint = t;
+		t = ( -1.0f - inPoint.y ) / dir.y ;
+		if ( t > 0.0f && t < mint )
+			mint = t;
+		t = ( 1.0f - inPoint.y ) / dir.y;
+		if ( t > 0.0f && t < mint )
+			mint = t;
+		t = ( 0 - inPoint.z ) / dir.z;
+		if ( t > 0.0f && t < mint )
+			mint = t;
+		t = ( 1 - inPoint.z ) / dir.z;
+		if ( t > 0.0f && t < mint )
+			mint = t;
+
+		Vector3 interPoint = inPoint + dir * mint;
+		if ( interPoint.x >= -1 && interPoint.x <= 1 &&
+			interPoint.y >= -1 && interPoint.y <= 1 &&
+			interPoint.z >= 0 && interPoint.z <= 1 )
+		{
+			if ( ( in + 1 ) % 3 == out )
+				interPoints[0] = interPoint;
+			else
+				interPoints[1] = interPoint;
+		}
+	}
+	//以下有误, 不能处理三角形同时交于两个面的情况. 此算法弃用
+
+	// 当原三角形经过剪切还是三角形, 就只修改他的顶点索引到剪切产生的新顶点
+	// 如果原三角形经过剪切成了四边形, 就新添加一个三角形并修改原三角形的顶点索引
+	srGeo.transVertex[srGeo.vertexCountAfterCull ++] = interPoints[0];
+	srGeo.transVertex[srGeo.vertexCountAfterCull ++] = interPoints[1];
+
+	dword point = srGeo.vertexCountAfterCull - 2;
+	for ( dword i = 0; i < 3; ++ i )
+	{
+		if ( inside[i] == false )
+			prim.vertIndex[i] = point ++;
+	}//这里错了
+	if ( insideCount == 2 )
+	{
+		Primitive& p = srGeo.prim[srGeo.primCountAfterCull ++];
+		p.visible = true;
+		p.vertList = srGeo.transVertex;
+		p.vertIndex[0] = srGeo.vertexCountAfterCull - 2;
+		p.vertIndex[1] = srGeo.vertexCountAfterCull - 1;
+		p.vertIndex[2] = prim.vertIndex[( out + 1 ) % 3];
+	}
+}
