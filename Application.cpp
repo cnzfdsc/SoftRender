@@ -111,18 +111,18 @@ void KeyDown( int key )
 		break;
 
 	case '1':
-		gDebugTool.EnableDrawWireframe(!gDebugTool.mEnableDrawWireframe);
-		gDebugTool.EnableShowMousePos(!gDebugTool.mEnableShowMousePos);
+//		gDebugTool.mEnableDrawWireframe = !gDebugTool.mEnableDrawWireframe;
+//		gDebugTool.mEnableShowMousePos = !gDebugTool.mEnableShowMousePos;
 		break;
 
 	case 'W':
 	case 'w':
-		gDebugTool.SetDrawWireframe(!gDebugTool.mDrawWireframe);
+		gDebugTool.mDrawWireframe = !gDebugTool.mDrawWireframe;
 		break;
 
 	case 'M':
 	case 'm':
-		gDebugTool.SetShowMousePos(!gDebugTool.mShowMousePos);
+		gDebugTool.mShowMousePos = !gDebugTool.mShowMousePos;
 		break;
 	}
 }

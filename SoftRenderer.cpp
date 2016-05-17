@@ -476,10 +476,16 @@ float AdjustXPos(float orgX, float destX, float curY, const Vector4& diff, bool 
 	if (diff.x < 0 != left || abs(diff.x) < ZERO_DELTA || abs(diff.y) < ZERO_DELTA )
 		return orgX;
 
-	float moveX = diff.x / diff.y * ((int)curY + 1 - curY);
+	float slope = diff.x / diff.y;
+	float moveX = slope * ((int)curY + 1 - curY);
 	float retX = orgX;
-	if (moveX > 1.0f)
-		retX = orgX + moveX;
+	
+	// 不能跟下一行有同样的X坐标
+	retX = orgX + moveX;
+	float nextX = orgX + slope;
+	if (abs((int)(nextX + 0.5)) == abs((int)(orgX + 0.5)) 
+		&& abs(abs((int)(orgX + 0.5)) - abs((int)(nextX + 0.5))) >= 1)
+		retX -= slope > 0 ? 1 : -1;
 
 	if (retX * diff.x > destX * diff.x)
 		retX = destX;
@@ -489,6 +495,7 @@ float AdjustXPos(float orgX, float destX, float curY, const Vector4& diff, bool 
 
 void SoftRenderer::Rasterize(const Vector4& v0, const Vector4& v1, const Vector4& v2, dword* bitmap, int width, int height, bool wireframe)
 {
+#pragma message( "*** TODO: 这个版本的扫描线算法太复杂了, 要重写一下" )
 	std::vector<const Vector4*> vList;
 	vList.push_back(&v0);
 	vList.push_back(&v1);
@@ -509,11 +516,13 @@ void SoftRenderer::Rasterize(const Vector4& v0, const Vector4& v1, const Vector4
 	// 左右当前X坐标
 	float leftCurX = AdjustXPos(vList[0]->x, leftDest->x, curY, leftDiff, true);
 	float rightCurX = AdjustXPos(vList[0]->x, rightDest->x, curY, rightDiff, false);
+	float lastLeftX = leftCurX;
+	float lastRightX = rightCurX;
 	
 	bool drawHorizontal = false;
 
 	// 从最上面的点开始逐行扫描
-	for (curY = vList[0]->y; curY <= vList[2]->y; curY += 1.0f)
+	for (curY = vList[0]->y; curY < vList[2]->y + 0.5f; curY += 1.0f)
 	{
 		// 如果因为斜率太小, Y坐标增加1, X坐标会越过三角形顶点, 则把X坐标对准三角形顶点
 		if (leftCurX * leftDiff.x >= leftDest->x * leftDiff.x)
@@ -523,25 +532,38 @@ void SoftRenderer::Rasterize(const Vector4& v0, const Vector4& v1, const Vector4
 			rightCurX = rightDest->x;
 
 		// 当斜率是0(也就是两个顶点在一条水平线上), 或者扫描线已经越过一个顶点时, 重新设定斜率
-		if ((abs(leftDiff.y) <= ZERO_DELTA) || curY > leftDest->y)
+		if ((abs(leftDiff.y) <= ZERO_DELTA || curY > leftDest->y) && leftDest !=  vList[2])
 		{
-			Vector4 oldLeftDest = *leftDest;
-			leftDest = rightDest;
-			leftDiff = *leftDest - oldLeftDest;
-			leftCurX = AdjustXPos(oldLeftDest.x, leftDest->x, curY, leftDiff, true);
+			const Vector4* oldLeftDest = leftDest;
+			leftDest = vList[2];
+			leftDiff = *leftDest - *oldLeftDest;
+			leftCurX = AdjustXPos(oldLeftDest->x, leftDest->x, curY, leftDiff, true);
 		}
 
-		if ((abs(rightDiff.y) <= ZERO_DELTA) || curY > rightDest->y)
+		if ((abs(rightDiff.y) <= ZERO_DELTA || curY > rightDest->y) && rightDest != vList[2])
 		{
-			Vector4 oldRightDest = *rightDest;
-			rightDest = leftDest;
-			rightDiff = *rightDest - oldRightDest;
-			rightCurX = AdjustXPos(oldRightDest.x, rightDest->x, curY, rightDiff, false);
+			const Vector4* oldRightDest = rightDest;
+			rightDest = vList[2];
+			rightDiff = *rightDest - *oldRightDest;
+			rightCurX = AdjustXPos(oldRightDest->x, rightDest->x, curY, rightDiff, false);
 		}
 
 		// 在扫描线上填充从起始到结束的像素
 		int sign = leftCurX < rightCurX ? 1 : -1;
-		for (int i = (int)(leftCurX + 0.5); i * sign <= (int)(rightCurX + 0.5) * sign; i += sign)
+
+		// 线不能断. 
+		// 以左边为例, 这么写是为了防止 curLeftX > lastRightX + 1 这种情况
+		// 但是不能直接改动 leftCurX, 因为这是根据斜率计算的本行的X, 如果改动, 斜率计算就错了. 所以单写一个PaintX
+		float leftPaint = leftCurX;
+		float rightPaint = rightCurX;
+
+		if (leftPaint > lastLeftX + 1)
+			leftPaint = lastLeftX + 1;
+
+		if (rightPaint < lastRightX - 1)
+			rightPaint = lastRightX - 1;
+
+		for (int i = (int)(leftPaint + 0.5); i * sign <= (int)(rightPaint + 0.5) * sign; i += sign)
 		{
 			int py = (int)(curY + 0.5);
 			if (py < 0 || py >= height)
@@ -550,6 +572,9 @@ void SoftRenderer::Rasterize(const Vector4& v0, const Vector4& v1, const Vector4
 		}
 
 		// 移动下一个起始和结束点的X坐标
+		lastLeftX = leftCurX;
+		lastRightX = rightCurX;
+
 		leftCurX += leftDiff.x / leftDiff.y;
 		rightCurX += rightDiff.x / rightDiff.y;
 

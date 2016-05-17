@@ -14,29 +14,9 @@ DebugTool::DebugTool()
 
 }
 
-void DebugTool::EnableDrawWireframe(bool enable)
-{
-	mEnableDrawWireframe = enable;
-}
-
-void DebugTool::SetDrawWireframe(bool wireframe)
-{
-	mDrawWireframe = wireframe;
-}
-
 bool DebugTool::IsDrawWireframe()
 {
 	return mDrawWireframe && mEnableDrawWireframe;
-}
-
-void DebugTool::EnableShowMousePos(bool enable)
-{
-	mEnableShowMousePos = enable;
-}
-
-void DebugTool::SetShowMousePos(bool show)
-{
-	mShowMousePos = show;
 }
 
 bool DebugTool::IsShowMousePos()
